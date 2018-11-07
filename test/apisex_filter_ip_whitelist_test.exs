@@ -70,10 +70,6 @@ defmodule APISexFilterIPWhitelistTest do
     refute conn.halted
   end
 
-  defp put_ip_address(conn, ip_address) do
-    %{conn | remote_ip: InetCidr.parse_address!(ip_address)}
-  end
-
   test "subnet list with invalid address" do
     whitelist = [
       "192.168.13.0/24",
@@ -95,5 +91,24 @@ defmodule APISexFilterIPWhitelistTest do
 
   defp put_ip_address(conn, ip_address) do
     %{conn | remote_ip: InetCidr.parse_address!(ip_address)}
+  end
+
+  test "valid IPv4 address with fun callback" do
+    opts = APISexFilterIPWhitelist.init(whitelist: &my_cidr_list/1)
+
+    conn =
+      conn(:get, "/")
+      |> put_ip_address("23.91.178.41")
+      |> APISexFilterIPWhitelist.call(opts)
+
+    refute conn.status == 403
+    refute conn.halted
+  end
+
+  defp my_cidr_list(_) do
+    [
+      "192.168.0.0/16",
+      "23.91.178.32/28"
+    ]
   end
 end
