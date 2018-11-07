@@ -18,15 +18,15 @@ defmodule APISexFilterIPWhitelist do
 
     opts
     |> Enum.into(%{})
-    |> Keyword.put_new(:set_filter_error_response, true)
-    |> Keyword.put_new(:halt_on_filter_failure, true)
+    |> Map.put_new(:set_filter_error_response, true)
+    |> Map.put_new(:halt_on_filter_failure, true)
   end
 
   @impl Plug
   def call(conn, opts) do
     case filter(conn, opts) do
       {:ok, conn} ->
-        {:ok, conn}
+        conn
 
       {:error, conn, reason} ->
         conn =
@@ -50,7 +50,8 @@ defmodule APISexFilterIPWhitelist do
   def filter(conn, opts) do
     %Plug.Conn{remote_ip: remote_ip} = conn
 
-    if Enum.any?(opts[:whitelist], fn cidr -> InetCidr.contains?(cidr, remote_ip) end) do
+    if Enum.any?(opts[:whitelist],
+                 fn cidr -> InetCidr.contains?(InetCidr.parse(cidr), remote_ip) end) do
       {:ok, conn}
     else
       {:error, conn, %APISex.Filter.Forbidden{filter: __MODULE__, reason: :ip_not_whitelisted}}
