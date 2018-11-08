@@ -38,13 +38,18 @@ defmodule APISexFilterIPWhitelist do
 
   @impl Plug
   def init(opts) do
-    if is_nil(opts[:whitelist]), do: raise "Missing whitelist parameter"
-
     opts
     |> Enum.into(%{})
+    |> Map.put(:whitelist, transform_whitelist(opts[:whitelist]))
     |> Map.put_new(:set_filter_error_response, true)
     |> Map.put_new(:halt_on_filter_failure, true)
   end
+
+  defp transform_whitelist(whitelist) when is_list(whitelist) do
+    Enum.map(whitelist, fn cidr -> InetCidr.parse(cidr) end)
+  end
+  defp transform_whitelist(whitelist) when is_function(whitelist, 1), do: whitelist
+  defp transform_whitelist(_), do: raise "Whitelist must be a list or a function"
 
   @impl Plug
   def call(conn, opts) do
@@ -87,9 +92,12 @@ defmodule APISexFilterIPWhitelist do
   defp do_filter(%Plug.Conn{remote_ip: remote_ip}, whitelist) do
     Enum.any?(
       whitelist,
-      fn cidr -> InetCidr.contains?(InetCidr.parse(cidr), remote_ip) end
+      fn cidr -> InetCidr.contains?(cidr(cidr), remote_ip) end
     )
   end
+
+  defp cidr(cidr) when is_binary(cidr), do: InetCidr.parse(cidr)
+  defp cidr(cidr) when is_tuple(cidr), do: cidr
 
   @impl APISex.Filter
   def set_error_response(conn, %APISex.Filter.Forbidden{}, _opts) do
