@@ -9,11 +9,12 @@ defmodule APISexFilterIPWhitelist do
 
   - `whitelist`: a *list* of allowed IPv4 and IPv6 addresses in CIDR notation or a
   `(Plug.Conn.t -> [String])` function returning that list of addresses
-  - `set_filter_error_response`: if `true`, sets the HTTP status code to `403`.
-  If false, does not do anything. Defaults to `true`
-  - `halt_on_filter_failure`: if set to `true`, halts the connection and directly sends the
-  response. When set to `false`, does nothing and therefore allows dealing with the error
-  later in the code. Defaults to `true`
+  - `exec_cond`: a `(Plug.Conn.t() -> boolean())` function that determines whether
+  this filter is to be executed or not. Defaults to `fn _ -> true end`
+  - `send_error_response`: function called when IP address is not whitelisted.
+  Defaults to `APISexFilterIPWhitelist.send_error_response/3`
+  - `error_response_verbosity`: one of `:debug`, `:normal` or `:minimal`.
+  Defaults to `:normal`
 
   ## Example
 
@@ -41,43 +42,35 @@ defmodule APISexFilterIPWhitelist do
     opts
     |> Enum.into(%{})
     |> Map.put(:whitelist, transform_whitelist(opts[:whitelist]))
-    |> Map.put_new(:set_filter_error_response, true)
-    |> Map.put_new(:halt_on_filter_failure, true)
+    |> Map.put_new(:exec_cond, fn _ -> true end)
+    |> Map.put_new(:send_error_response, &__MODULE__.send_error_response/3)
+    |> Map.put_new(:error_response_verbosity, :normal)
   end
 
   defp transform_whitelist(whitelist) when is_list(whitelist) do
     Enum.map(whitelist, fn cidr -> InetCidr.parse(cidr) end)
   end
+
   defp transform_whitelist(whitelist) when is_function(whitelist, 1), do: whitelist
-  defp transform_whitelist(_), do: raise "Whitelist must be a list or a function"
+  defp transform_whitelist(_), do: raise("Whitelist must be a list or a function")
 
   @impl Plug
   def call(conn, opts) do
-    case filter(conn, opts) do
-      {:ok, conn} ->
-        conn
-
-      {:error, conn, reason} ->
-        conn =
-          if opts[:set_filter_error_response] do
-            set_error_response(conn, reason, opts)
-          else
-            conn
-          end
-
-        if opts[:halt_on_filter_failure] do
+    if opts[:exec_cond].(conn) do
+      case filter(conn, opts) do
+        {:ok, conn} ->
           conn
-          |> Plug.Conn.send_resp()
-          |> Plug.Conn.halt()
-        else
-          conn
-        end
+
+        {:error, conn, reason} ->
+          opts[:send_error_response].(conn, reason, opts)
+      end
+    else
+      conn
     end
   end
 
   @impl APISex.Filter
   def filter(conn, %{whitelist: whitelist}) do
-
     if do_filter(conn, whitelist) do
       {:ok, conn}
     else
@@ -99,9 +92,33 @@ defmodule APISexFilterIPWhitelist do
   defp cidr(cidr) when is_binary(cidr), do: InetCidr.parse(cidr)
   defp cidr(cidr) when is_tuple(cidr), do: cidr
 
+  @doc """
+  Implementation of the `APISex.Filter` behaviour.
+
+  ## Verbosity
+
+  The following elements in the HTTP response are set depending on the value
+  of the `:error_response_verbosity` option:
+
+  | Error reponse verbosity | HTTP status             | Headers     | Body                                          |
+  |:-----------------------:|-------------------------|-------------|-----------------------------------------------|
+  | :debug                  | Forbidden (403)         |             | `APISex.Filter.Forbidden` exception's message |
+  | :normal                 | Forbidden (403)         |             |                                               |
+  | :minimal                | Forbidden (403)         |             |                                               |
+
+  """
   @impl APISex.Filter
-  def set_error_response(conn, %APISex.Filter.Forbidden{}, _opts) do
-    conn
-    |> Plug.Conn.resp(:forbidden, "")
+  def send_error_response(conn, %APISex.Filter.Forbidden{} = error, opts) do
+    case opts[:error_response_verbosity] do
+      :debug ->
+        conn
+        |> Plug.Conn.send_resp(:forbidden, Exception.message(error))
+        |> Plug.Conn.halt()
+
+      atom when atom in [:normal, :minimal] ->
+        conn
+        |> Plug.Conn.send_resp(:forbidden, "")
+        |> Plug.Conn.halt()
+    end
   end
 end
