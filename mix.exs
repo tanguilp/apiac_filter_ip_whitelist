@@ -26,6 +26,7 @@ defmodule APISexFilterIPWhitelist.MixProject do
       {:plug, "~> 1.0"},
       {:apisex, github: "tanguilp/apisex", tag: "master"},
       {:inet_cidr, "~> 1.0.0"},
+      {:dialyxir, "~> 1.0.0-rc.4", only: [:dev], runtime: false},
       {:ex_doc, "~> 0.19", only: :dev, runtime: false}
     ]
   end
