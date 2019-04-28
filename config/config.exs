@@ -10,11 +10,11 @@ use Mix.Config
 
 # You can configure your application as:
 #
-#     config :apisex_filter_ip_whitelist, key: :value
+#     config :apiac_filter_ip_whitelist, key: :value
 #
 # and access this configuration in your application as:
 #
-#     Application.get_env(:apisex_filter_ip_whitelist, :key)
+#     Application.get_env(:apiac_filter_ip_whitelist, :key)
 #
 # You can also configure a 3rd-party app:
 #
