@@ -10,7 +10,7 @@ defmodule APIacFilterIPWhitelist do
   - `whitelist`: a *list* of allowed IPv4 and IPv6 addresses in CIDR notation or a
   `(Plug.Conn.t -> [String])` function returning that list of addresses
   - `exec_cond`: a `(Plug.Conn.t() -> boolean())` function that determines whether
-  this filter is to be executed or not. Defaults to `fn _ -> true end`
+  this filter is to be executed or not. Defaults to a function returning `true`
   - `send_error_response`: function called when IP address is not whitelisted.
   Defaults to `APIacFilterIPWhitelist.send_error_response/3`
   - `error_response_verbosity`: one of `:debug`, `:normal` or `:minimal`.
@@ -42,7 +42,7 @@ defmodule APIacFilterIPWhitelist do
     opts
     |> Enum.into(%{})
     |> Map.put(:whitelist, transform_whitelist(opts[:whitelist]))
-    |> Map.put_new(:exec_cond, fn _ -> true end)
+    |> Map.put_new(:exec_cond, &__MODULE__.always_true/1)
     |> Map.put_new(:send_error_response, &__MODULE__.send_error_response/3)
     |> Map.put_new(:error_response_verbosity, :normal)
   end
@@ -121,4 +121,6 @@ defmodule APIacFilterIPWhitelist do
         |> Plug.Conn.halt()
     end
   end
+
+  def always_true(_), do: true
 end
