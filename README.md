@@ -7,7 +7,7 @@ An `APIac.Filter` plug enabling IP whitelist (IPv4 & IPv6)
 ```elixir
 def deps do
   [
-    {:apiac_filter_ip_whitelist, github: "tanguilp/apiac_filter_ip_whitelist", tag: "0.2.0"}
+    {:apiac_filter_ip_whitelist, "~> 1.0"},
   ]
 end
 ```
